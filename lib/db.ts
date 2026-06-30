@@ -3,45 +3,62 @@ import path from "path";
 import { seedParcels } from "./seed";
 import { ParcelCase } from "./types";
 
-// Simple file-backed JSON store. This keeps the MVP zero-dependency and
-// inspectable; swap for a real database (Postgres/Prisma) when persistence
-// and multi-tenancy are needed.
-
-const DATA_DIR = path.join(process.cwd(), "data");
-const STORE_PATH = path.join(DATA_DIR, "store.json");
+// Store strategy:
+//   - Source of truth is an in-memory singleton held on globalThis, so it
+//     survives hot reloads in dev and warm invocations on serverless hosts.
+//   - Best-effort disk persistence to data/store.json when the filesystem is
+//     writable (local dev). On read-only hosts (e.g. Vercel) the write is
+//     skipped silently and the in-memory store is used instead.
+// Swap this for Postgres/Prisma when real, durable multi-user persistence is
+// needed.
 
 interface Store {
   parcels: ParcelCase[];
 }
 
-function ensureStore(): Store {
-  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-  if (!fs.existsSync(STORE_PATH)) {
-    const initial: Store = { parcels: seedParcels() };
-    fs.writeFileSync(STORE_PATH, JSON.stringify(initial, null, 2));
-    return initial;
-  }
+const DATA_DIR = path.join(process.cwd(), "data");
+const STORE_PATH = path.join(DATA_DIR, "store.json");
+
+const globalRef = globalThis as unknown as { __parcelStore?: Store };
+
+function persist(store: Store) {
   try {
-    return JSON.parse(fs.readFileSync(STORE_PATH, "utf-8")) as Store;
+    if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+    fs.writeFileSync(STORE_PATH, JSON.stringify(store, null, 2));
   } catch {
-    const initial: Store = { parcels: seedParcels() };
-    fs.writeFileSync(STORE_PATH, JSON.stringify(initial, null, 2));
-    return initial;
+    // Read-only filesystem (serverless) — in-memory store remains the source
+    // of truth; nothing further to do.
   }
 }
 
-function write(store: Store) {
-  fs.writeFileSync(STORE_PATH, JSON.stringify(store, null, 2));
+function load(): Store {
+  if (globalRef.__parcelStore) return globalRef.__parcelStore;
+
+  let store: Store | null = null;
+  try {
+    if (fs.existsSync(STORE_PATH)) {
+      store = JSON.parse(fs.readFileSync(STORE_PATH, "utf-8")) as Store;
+    }
+  } catch {
+    store = null;
+  }
+  if (!store || !Array.isArray(store.parcels)) {
+    store = { parcels: seedParcels() };
+    persist(store);
+  }
+
+  globalRef.__parcelStore = store;
+  return store;
 }
 
 export function listParcels(): ParcelCase[] {
-  return ensureStore().parcels.sort((a, b) =>
+  return [...load().parcels].sort((a, b) =>
     b.updatedAt.localeCompare(a.updatedAt)
   );
 }
 
 export function getParcel(id: string): ParcelCase | undefined {
-  return ensureStore().parcels.find((p) => p.id === id);
+  return load().parcels.find((p) => p.id === id);
 }
 
 export function createParcel(
@@ -50,7 +67,7 @@ export function createParcel(
     "id" | "createdAt" | "updatedAt" | "documents" | "analysis" | "status"
   >
 ): ParcelCase {
-  const store = ensureStore();
+  const store = load();
   const now = new Date().toISOString();
   const seq = 2072 + store.parcels.length;
   const parcel: ParcelCase = {
@@ -63,7 +80,7 @@ export function createParcel(
     analysis: null,
   };
   store.parcels.push(parcel);
-  write(store);
+  persist(store);
   return parcel;
 }
 
@@ -71,11 +88,14 @@ export function updateParcel(
   id: string,
   mutate: (p: ParcelCase) => ParcelCase
 ): ParcelCase | undefined {
-  const store = ensureStore();
+  const store = load();
   const idx = store.parcels.findIndex((p) => p.id === id);
   if (idx === -1) return undefined;
-  const updated = { ...mutate(store.parcels[idx]), updatedAt: new Date().toISOString() };
+  const updated = {
+    ...mutate(store.parcels[idx]),
+    updatedAt: new Date().toISOString(),
+  };
   store.parcels[idx] = updated;
-  write(store);
+  persist(store);
   return updated;
 }
