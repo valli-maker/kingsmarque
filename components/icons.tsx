@@ -100,3 +100,28 @@ export const IconTrash = (p: P) => (
     <path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2m2 0v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7" />
   </svg>
 );
+
+export const IconPaperclip = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M21 11.5 12.5 20a5 5 0 0 1-7-7l8-8a3.5 3.5 0 0 1 5 5l-8 8a2 2 0 0 1-3-3l7.5-7.5" />
+  </svg>
+);
+
+export const IconSend = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M4 12 20 4l-6 16-2.5-6.5L4 12Z" />
+  </svg>
+);
+
+export const IconSparkles = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6L12 3Z" />
+    <path d="M18 14l.8 2.2L21 17l-2.2.8L18 20l-.8-2.2L15 17l2.2-.8L18 14Z" />
+  </svg>
+);
+
+export const IconClose = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M6 6l12 12M18 6 6 18" />
+  </svg>
+);

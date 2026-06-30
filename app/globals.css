@@ -27,3 +27,47 @@ body {
 .scroll-thin::-webkit-scrollbar-track {
   background: transparent;
 }
+
+/* Lightweight typography for the AI-drafted report (markdown output). */
+.prose-report {
+  @apply text-sm leading-relaxed text-slate-700;
+}
+.prose-report h1 {
+  @apply mt-5 mb-2 text-lg font-semibold text-slate-900;
+}
+.prose-report h2 {
+  @apply mt-5 mb-2 text-base font-semibold text-slate-900;
+}
+.prose-report h3 {
+  @apply mt-4 mb-1.5 text-sm font-semibold text-slate-900;
+}
+.prose-report p {
+  @apply my-2;
+}
+.prose-report strong {
+  @apply font-semibold text-slate-900;
+}
+.prose-report ul {
+  @apply my-2 list-disc space-y-1 pl-5;
+}
+.prose-report ol {
+  @apply my-2 list-decimal space-y-1 pl-5;
+}
+.prose-report a {
+  @apply text-brand-600 underline;
+}
+.prose-report hr {
+  @apply my-4 border-slate-200;
+}
+.prose-report table {
+  @apply my-3 w-full border-collapse overflow-hidden rounded-lg text-xs ring-1 ring-slate-200;
+}
+.prose-report th {
+  @apply bg-slate-50 px-3 py-2 text-left font-semibold text-slate-700;
+}
+.prose-report td {
+  @apply border-t border-slate-100 px-3 py-2 align-top;
+}
+.prose-report code {
+  @apply rounded bg-slate-100 px-1 py-0.5 text-[0.85em];
+}

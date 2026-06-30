@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import "./globals.css";
-import { IconDashboard, IconMap, IconScale, IconShield } from "@/components/icons";
+import { IconMap, IconScale, IconShield } from "@/components/icons";
 
 export const metadata: Metadata = {
-  title: "ParcelClear — Land Due Diligence",
+  title: "ParcelClear — Land Title Examination",
   description:
-    "AI-assisted title and due-diligence review for land parcels in India.",
+    "AI-assisted title examination and Title Report drafting for land parcels in India.",
 };
 
 export default function RootLayout({
@@ -17,11 +17,11 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <div className="flex min-h-screen">
+        <div className="flex h-screen overflow-hidden">
           <Sidebar />
           <div className="flex min-w-0 flex-1 flex-col">
             <Topbar />
-            <main className="scroll-thin flex-1 overflow-y-auto">
+            <main className="flex min-h-0 flex-1 flex-col overflow-hidden">
               {children}
             </main>
           </div>
@@ -45,11 +45,8 @@ function Sidebar() {
       </div>
 
       <nav className="mt-2 flex flex-col gap-0.5 px-3">
-        <NavLink href="/" icon={<IconDashboard className="h-5 w-5" />}>
-          Dashboard
-        </NavLink>
-        <NavLink href="/parcels/new" icon={<IconShield className="h-5 w-5" />}>
-          New Diligence
+        <NavLink href="/" icon={<IconShield className="h-5 w-5" />}>
+          New Title Report
         </NavLink>
       </nav>
 
@@ -102,8 +99,8 @@ function Topbar() {
         Title &amp; Due-Diligence Workspace
       </div>
       <div className="flex items-center gap-3">
-        <span className="rounded-full bg-amber-50 px-2.5 py-0.5 text-[11px] font-medium text-amber-700 ring-1 ring-inset ring-amber-600/20">
-          Demo · Mock AI
+        <span className="rounded-full bg-brand-50 px-2.5 py-0.5 text-[11px] font-medium text-brand-700 ring-1 ring-inset ring-brand-600/20">
+          Powered by Claude
         </span>
         <div className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-100 text-xs font-semibold text-brand-700">
           RH

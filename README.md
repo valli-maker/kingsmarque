@@ -1,74 +1,59 @@
-# ParcelClear — Land Parcel Due Diligence
+# ParcelClear — Land Title Examination
 
-An AI-assisted due-diligence workspace for **land parcels in India**, modelled
-on enterprise legal-AI platforms but specialised for title verification and
-land risk review. Upload a parcel's records (sale deeds, encumbrance
-certificates, RTC/Pahani, Khata, mutation extracts, survey sketches…), run an
-analysis, and get a reconstructed **chain of title**, an **encumbrance review**,
-a categorised **risk report**, and an overall **diligence risk score**.
+A chat-driven assistant that reads land documents and drafts a formal **Title
+Examination Report (Title Opinion)** for immovable property in India, tuned for
+Karnataka revenue and registration records.
 
-> **Demo build.** The analysis engine is a deterministic mock (`lib/mockAnalysis.ts`)
-> so the app runs fully offline with no API keys. It is structured to be swapped
-> for a real Claude-powered document-extraction pipeline later.
+You upload the parcel's documents — sale/partition deeds, RTC/Pahani, Khata,
+mutation extracts, survey/Hissa records, Encumbrance Certificates, endorsements —
+and the assistant (Claude Opus 4.8) reads them, traces the chain of title, asks
+briefly for anything missing, and produces a report in the firm's house style:
 
-## Features
-
-- **Portfolio dashboard** — all parcels with status, extent and risk at a glance.
-- **New diligence intake** — capture parcel particulars (survey no., village,
-  taluk, district, owner, purpose).
-- **Document workspace** — classify and "upload" records against a required-doc
-  checklist; uploads invalidate stale analysis.
-- **AI analysis (mock)** — derives a title chain, encumbrances, and risk flags
-  across six categories: title, encumbrance, litigation, land use, survey and
-  statutory.
-- **Risk report** — severity-ranked findings with recommendations, document
-  checklist, and a 0–100 risk gauge.
+1. **Property Description** (item-wise: survey no., extent in Acres/Guntas, village/hobli/taluk, boundaries)
+2. **I. List of Documents Furnished** (numbered table)
+3. **II. Tracing of the Title** (chronological numbered paragraphs citing each document)
+4. **III. Survey Records and Endorsement**
+5. **Encumbrance Certificate**
+6. **Conclusion** (the title opinion)
 
 ## Tech stack
 
-- **Next.js 14** (App Router) + **TypeScript**
-- **Tailwind CSS**
-- File-backed JSON store (`data/store.json`, seeded from `lib/seed.ts`) — no
-  database required for the demo.
+- **Next.js 14** (App Router) + **TypeScript** + **Tailwind CSS**
+- **Claude Opus 4.8** via `@anthropic-ai/sdk` — native PDF/image reading, streamed responses
+- `react-markdown` + `remark-gfm` for rendering the report (tables, headings)
+
+## Configuration
+
+The app needs an Anthropic API key, read from the `ANTHROPIC_API_KEY`
+environment variable.
+
+- **Local:** create a `.env.local` with `ANTHROPIC_API_KEY=sk-ant-...`
+- **Vercel:** add `ANTHROPIC_API_KEY` under Settings → Environment Variables, then redeploy.
+
+Create a key at [console.anthropic.com](https://console.anthropic.com). Without
+a key, the chat replies with setup instructions instead of failing.
 
 ## Getting started
 
 ```bash
 npm install
-npm run dev
+ANTHROPIC_API_KEY=sk-ant-... npm run dev   # http://localhost:3000
 ```
 
-Open http://localhost:3000. The store is seeded with sample Karnataka parcels on
-first run. Delete `data/store.json` to reset to seed data.
+## How it works
 
-## Project layout
+- `lib/titleReportPrompt.ts` — the system prompt: report structure, drafting
+  conventions, accuracy rules, and a gold-standard exemplar in the firm's style.
+- `app/api/chat/route.ts` — streams Claude's response; uploaded PDFs/images are
+  passed as native document/image content blocks so the model reads them directly.
+- `components/Chat.tsx` — the chat UI (upload, stream, render the report).
 
-```
-app/
-  page.tsx                     Dashboard
-  parcels/new/page.tsx         New diligence intake form
-  parcels/[id]/page.tsx        Parcel workspace (server wrapper)
-  api/parcels/...              REST endpoints (list/create/upload/analyze)
-components/
-  ParcelWorkspace.tsx          Tabbed workspace (overview/docs/title/risk)
-  TitleChain.tsx               Chain-of-title timeline + encumbrances
-  RiskReport.tsx               Risk findings + document checklist
-lib/
-  types.ts                     Domain model
-  mockAnalysis.ts              Deterministic mock analysis engine
-  db.ts / seed.ts              File-backed store + seed data
-```
+## Known limitations / roadmap
 
-## Roadmap to production
-
-- Replace `runMockAnalysis` with a real document-extraction pipeline (OCR +
-  Claude) that reads uploaded PDFs.
-- Swap the JSON store for Postgres/Prisma; add object storage for files.
-- Authentication, organisations/teams, and audit trails.
-- Multi-state revenue-record support beyond Karnataka.
-- Exportable PDF diligence reports.
-
----
-
-_Generated assessments are decision-support only and do not constitute a legal
-title opinion._
+- **Upload size:** serverless requests are capped (~4 MB on Vercel Hobby), so very
+  large scanned files won't send. Production path: direct-to-storage upload +
+  the Anthropic Files API (`file_id` references) instead of inline base64.
+- **No persistence yet:** each conversation lives in the browser session. Saving
+  reports, a portfolio view, and PDF/DOCX export are natural next steps.
+- **Verification:** output is decision-support drafting, not a substitute for a
+  signed opinion by an advocate — always check against the original records.
