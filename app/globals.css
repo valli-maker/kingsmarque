@@ -13,7 +13,7 @@ body {
 }
 
 body {
-  @apply bg-slate-50 text-slate-800 antialiased;
+  @apply bg-slate-50 text-slate-800 antialiased dark:bg-slate-950 dark:text-slate-200;
 }
 
 /* Thin custom scrollbars for the content panes. */
@@ -30,22 +30,22 @@ body {
 
 /* Lightweight typography for the AI-drafted report (markdown output). */
 .prose-report {
-  @apply text-sm leading-relaxed text-slate-700;
+  @apply text-sm leading-relaxed text-slate-700 dark:text-slate-300;
 }
 .prose-report h1 {
-  @apply mt-5 mb-2 text-lg font-semibold text-slate-900;
+  @apply mt-5 mb-2 text-lg font-semibold text-slate-900 dark:text-white;
 }
 .prose-report h2 {
-  @apply mt-5 mb-2 text-base font-semibold text-slate-900;
+  @apply mt-5 mb-2 text-base font-semibold text-slate-900 dark:text-white;
 }
 .prose-report h3 {
-  @apply mt-4 mb-1.5 text-sm font-semibold text-slate-900;
+  @apply mt-4 mb-1.5 text-sm font-semibold text-slate-900 dark:text-white;
 }
 .prose-report p {
   @apply my-2;
 }
 .prose-report strong {
-  @apply font-semibold text-slate-900;
+  @apply font-semibold text-slate-900 dark:text-white;
 }
 .prose-report ul {
   @apply my-2 list-disc space-y-1 pl-5;
@@ -60,14 +60,17 @@ body {
   @apply my-4 border-slate-200;
 }
 .prose-report table {
-  @apply my-3 w-full border-collapse overflow-hidden rounded-lg text-xs ring-1 ring-slate-200;
+  @apply my-3 w-full border-collapse overflow-hidden rounded-lg text-xs ring-1 ring-slate-200 dark:ring-slate-700;
 }
 .prose-report th {
-  @apply bg-slate-50 px-3 py-2 text-left font-semibold text-slate-700;
+  @apply bg-slate-50 px-3 py-2 text-left font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-200;
 }
 .prose-report td {
-  @apply border-t border-slate-100 px-3 py-2 align-top;
+  @apply border-t border-slate-100 px-3 py-2 align-top dark:border-slate-800;
 }
 .prose-report code {
-  @apply rounded bg-slate-100 px-1 py-0.5 text-[0.85em];
+  @apply rounded bg-slate-100 px-1 py-0.5 text-[0.85em] dark:bg-slate-800;
+}
+.prose-report hr {
+  @apply dark:border-slate-800;
 }

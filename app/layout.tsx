@@ -1,13 +1,16 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import "./globals.css";
-import { IconMap, IconScale, IconShield } from "@/components/icons";
+import { IconMap } from "@/components/icons";
+import ThemeToggle from "@/components/ThemeToggle";
 
 export const metadata: Metadata = {
   title: "ParcelClear — Land Title Examination",
   description:
     "AI-assisted title examination and Title Report drafting for land parcels in India.",
 };
+
+// Apply the saved theme before paint to avoid a flash of the wrong theme.
+const themeInit = `try{var t=localStorage.getItem('parcelclear.theme');if(t==='dark'||(!t&&window.matchMedia('(prefers-color-scheme: dark)').matches)){document.documentElement.classList.add('dark');}}catch(e){}`;
 
 export default function RootLayout({
   children,
@@ -16,94 +19,58 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeInit }} />
+      </head>
       <body>
-        <div className="flex h-screen overflow-hidden">
-          <Sidebar />
-          <div className="flex min-w-0 flex-1 flex-col">
-            <Topbar />
-            <main className="flex min-h-0 flex-1 flex-col overflow-hidden">
-              {children}
-            </main>
-          </div>
+        <div className="flex h-screen flex-col overflow-hidden">
+          <Topbar />
+          <main className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            {children}
+          </main>
         </div>
       </body>
     </html>
   );
 }
 
-function Sidebar() {
-  return (
-    <aside className="hidden w-64 shrink-0 flex-col border-r border-slate-200 bg-white md:flex">
-      <div className="flex items-center gap-2.5 px-5 py-5">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-600 text-white">
-          <IconMap className="h-5 w-5" />
-        </div>
-        <div className="leading-tight">
-          <div className="text-sm font-semibold text-slate-900">ParcelClear</div>
-          <div className="text-[11px] text-slate-500">Land Diligence Suite</div>
-        </div>
-      </div>
-
-      <nav className="mt-2 flex flex-col gap-0.5 px-3">
-        <NavLink href="/" icon={<IconShield className="h-5 w-5" />}>
-          New Title Report
-        </NavLink>
-      </nav>
-
-      <div className="mt-auto px-4 py-4">
-        <div className="rounded-xl bg-slate-50 p-3 ring-1 ring-slate-200">
-          <div className="flex items-center gap-2 text-xs font-medium text-slate-700">
-            <IconScale className="h-4 w-4 text-brand-600" />
-            Jurisdiction
-          </div>
-          <p className="mt-1 text-[11px] leading-relaxed text-slate-500">
-            Configured for Karnataka revenue records. Multi-state support is on
-            the roadmap.
-          </p>
-        </div>
-      </div>
-    </aside>
-  );
-}
-
-function NavLink({
-  href,
-  icon,
-  children,
-}: {
-  href: string;
-  icon: React.ReactNode;
-  children: React.ReactNode;
-}) {
-  return (
-    <Link
-      href={href}
-      className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
-    >
-      <span className="text-slate-400">{icon}</span>
-      {children}
-    </Link>
-  );
-}
-
 function Topbar() {
+  const tabs = ["New Report", "Reports", "Guidance"];
   return (
-    <header className="flex h-14 items-center justify-between border-b border-slate-200 bg-white/80 px-5 backdrop-blur">
-      <div className="flex items-center gap-2 md:hidden">
-        <div className="flex h-7 w-7 items-center justify-center rounded-md bg-brand-600 text-white">
-          <IconMap className="h-4 w-4" />
+    <header className="flex h-14 shrink-0 items-center justify-between border-b border-slate-200 bg-white px-4 dark:border-slate-800 dark:bg-slate-900">
+      <div className="flex items-center gap-6">
+        <div className="flex items-center gap-2">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 text-white">
+            <IconMap className="h-5 w-5" />
+          </div>
+          <span className="text-[15px] font-bold tracking-tight text-slate-900 dark:text-white">
+            Parcel<span className="text-brand-600">Clear</span>
+          </span>
         </div>
-        <span className="text-sm font-semibold">ParcelClear</span>
-      </div>
-      <div className="hidden text-sm text-slate-400 md:block">
-        Title &amp; Due-Diligence Workspace
+        <nav className="hidden items-center gap-1 md:flex">
+          {tabs.map((t, i) => (
+            <span
+              key={t}
+              className={`rounded-md px-3 py-1.5 text-sm font-medium ${
+                i === 0
+                  ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900"
+                  : "text-slate-500 dark:text-slate-400"
+              }`}
+            >
+              {t}
+            </span>
+          ))}
+        </nav>
       </div>
       <div className="flex items-center gap-3">
-        <span className="rounded-full bg-brand-50 px-2.5 py-0.5 text-[11px] font-medium text-brand-700 ring-1 ring-inset ring-brand-600/20">
-          Powered by Claude
-        </span>
-        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-100 text-xs font-semibold text-brand-700">
-          RH
+        <ThemeToggle />
+        <div className="flex items-center gap-2">
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-100 text-xs font-semibold text-brand-700 dark:bg-brand-900 dark:text-brand-200">
+            RH
+          </div>
+          <span className="hidden text-sm font-medium text-slate-700 dark:text-slate-200 sm:block">
+            Title Desk
+          </span>
         </div>
       </div>
     </header>
