@@ -50,26 +50,26 @@ export async function POST(req: Request) {
     return plain("⚠️ Could not read the request.");
   }
 
-  const client = new Anthropic();
+  // Beta header (enables referencing uploaded documents by file_id) is set as a
+  // default header so the stream call takes a single argument.
+  const client = new Anthropic({
+    defaultHeaders: { "anthropic-beta": FILES_BETA },
+  });
   type StreamParams = Parameters<typeof client.messages.stream>[0];
 
-  const stream = client.messages.stream(
-    {
-      model: "claude-opus-4-8",
-      max_tokens: 16000,
-      system: [
-        {
-          type: "text",
-          text: SYSTEM_PROMPT,
-          // Cache the large exemplar prompt so multi-turn chats stay cheap.
-          cache_control: { type: "ephemeral" },
-        },
-      ],
-      messages,
-    } as unknown as StreamParams,
-    // Beta header enables referencing uploaded documents by file_id.
-    { headers: { "anthropic-beta": FILES_BETA } }
-  );
+  const stream = client.messages.stream({
+    model: "claude-opus-4-8",
+    max_tokens: 16000,
+    system: [
+      {
+        type: "text",
+        text: SYSTEM_PROMPT,
+        // Cache the large exemplar prompt so multi-turn chats stay cheap.
+        cache_control: { type: "ephemeral" },
+      },
+    ],
+    messages,
+  } as unknown as StreamParams);
 
   const encoder = new TextEncoder();
   const readable = new ReadableStream<Uint8Array>({

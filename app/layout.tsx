@@ -19,10 +19,8 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <head>
-        <script dangerouslySetInnerHTML={{ __html: themeInit }} />
-      </head>
       <body>
+        <script dangerouslySetInnerHTML={{ __html: themeInit }} />
         <div className="flex h-screen flex-col overflow-hidden">
           <Topbar />
           <main className="flex min-h-0 flex-1 flex-col overflow-hidden">
