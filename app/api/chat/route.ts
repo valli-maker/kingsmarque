@@ -7,11 +7,15 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 export const dynamic = "force-dynamic";
 
+const FILES_BETA = "files-api-2025-04-14";
+
+// Documents/images are referenced by Files API id (uploaded separately via
+// /api/upload), so each chat request stays tiny regardless of document size.
 type Block =
   | { type: "text"; text: string }
   | {
       type: "document" | "image";
-      source: { type: "base64"; media_type: string; data: string };
+      source: { type: "file"; file_id: string };
     };
 
 interface InMessage {
@@ -47,21 +51,25 @@ export async function POST(req: Request) {
   }
 
   const client = new Anthropic();
+  type StreamParams = Parameters<typeof client.messages.stream>[0];
 
-  const stream = client.messages.stream({
-    model: "claude-opus-4-8",
-    max_tokens: 16000,
-    system: [
-      {
-        type: "text",
-        text: SYSTEM_PROMPT,
-        // Cache the large exemplar prompt so multi-turn chats stay cheap.
-        cache_control: { type: "ephemeral" },
-      },
-    ],
-    // Content blocks (text / document / image) are passed through from the client.
-    messages: messages as Anthropic.MessageParam[],
-  });
+  const stream = client.messages.stream(
+    {
+      model: "claude-opus-4-8",
+      max_tokens: 16000,
+      system: [
+        {
+          type: "text",
+          text: SYSTEM_PROMPT,
+          // Cache the large exemplar prompt so multi-turn chats stay cheap.
+          cache_control: { type: "ephemeral" },
+        },
+      ],
+      messages,
+    } as unknown as StreamParams,
+    // Beta header enables referencing uploaded documents by file_id.
+    { headers: { "anthropic-beta": FILES_BETA } }
+  );
 
   const encoder = new TextEncoder();
   const readable = new ReadableStream<Uint8Array>({

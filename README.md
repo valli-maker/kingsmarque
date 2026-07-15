@@ -44,15 +44,21 @@ ANTHROPIC_API_KEY=sk-ant-... npm run dev   # http://localhost:3000
 
 - `lib/titleReportPrompt.ts` — the system prompt: report structure, drafting
   conventions, accuracy rules, and a gold-standard exemplar in the firm's style.
-- `app/api/chat/route.ts` — streams Claude's response; uploaded PDFs/images are
-  passed as native document/image content blocks so the model reads them directly.
-- `components/Chat.tsx` — the chat UI (upload, stream, render the report).
+- `app/api/upload/route.ts` — uploads one document to the Anthropic Files API and
+  returns its `file_id` (one file per request keeps each request small).
+- `app/api/chat/route.ts` — streams Claude's response; documents are referenced by
+  `file_id` so the model reads them directly and requests stay tiny.
+- `components/Chat.tsx` — the chat UI (per-file upload, stream, render the report).
 
 ## Known limitations / roadmap
 
-- **Upload size:** serverless requests are capped (~4 MB on Vercel Hobby), so very
-  large scanned files won't send. Production path: direct-to-storage upload +
-  the Anthropic Files API (`file_id` references) instead of inline base64.
+- **Per-file size:** each individual file must be under ~4 MB (the serverless
+  per-request body limit); the *total* document set can be large since files are
+  uploaded one at a time. For occasional oversized single scans, a direct
+  browser→storage upload path would lift the per-file cap.
+- **Generation time:** a full report over a large document set can exceed the
+  free-tier serverless time limit (~60s) and get cut off mid-draft. Vercel Pro
+  raises this to ~300s; a background-job architecture removes the limit entirely.
 - **No persistence yet:** each conversation lives in the browser session. Saving
   reports, a portfolio view, and PDF/DOCX export are natural next steps.
 - **Verification:** output is decision-support drafting, not a substitute for a

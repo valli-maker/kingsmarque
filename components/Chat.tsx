@@ -12,31 +12,34 @@ import {
   IconSparkles,
 } from "@/components/icons";
 
+type UploadStatus = "uploading" | "ready" | "error";
+
 interface Attachment {
+  id: string; // local id
   name: string;
   mediaType: string;
-  dataB64: string; // base64 without the data: prefix
   sizeKb: number;
+  status: UploadStatus;
+  fileId?: string; // Anthropic Files API id, once uploaded
+  error?: string;
 }
 
 interface ChatMessage {
   role: "user" | "assistant";
   text: string;
-  attachments?: { name: string; sizeKb: number }[];
+  attachments?: { name: string; sizeKb: number; fileId: string; mediaType: string }[];
 }
 
-// Anthropic content-block shape sent to the API.
+// Anthropic content-block shape sent to the API (file references only).
 type Block =
   | { type: "text"; text: string }
-  | {
-      type: "document" | "image";
-      source: { type: "base64"; media_type: string; data: string };
-    };
+  | { type: "document" | "image"; source: { type: "file"; file_id: string } };
 
 const ACCEPTED = ".pdf,.png,.jpg,.jpeg,.webp";
-const MAX_TOTAL_BYTES = 4.0 * 1024 * 1024; // Vercel request-body ceiling guard.
+// Each individual file must stay under the platform's per-request body limit.
+const MAX_FILE_BYTES = 4.4 * 1024 * 1024;
 
-function imageType(t: string) {
+function isImage(t: string) {
   return ["image/png", "image/jpeg", "image/webp", "image/gif"].includes(t);
 }
 
@@ -48,81 +51,97 @@ export default function Chat() {
   const [notice, setNotice] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-  // Keep the full per-message attachment payloads (with base64) for resending.
-  const payloads = useRef<Attachment[][]>([]);
+  const idCounter = useRef(0);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({
       top: scrollRef.current.scrollHeight,
       behavior: "smooth",
     });
-  }, [messages, streaming]);
+  }, [messages, streaming, pending]);
 
-  async function onPick(e: React.ChangeEvent<HTMLInputElement>) {
+  function updatePending(id: string, patch: Partial<Attachment>) {
+    setPending((prev) => prev.map((a) => (a.id === id ? { ...a, ...patch } : a)));
+  }
+
+  async function uploadOne(file: File, id: string) {
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const res = await fetch("/api/upload", { method: "POST", body: form });
+      const data = await res.json();
+      if (data.error || !data.fileId) {
+        updatePending(id, { status: "error", error: data.error ?? "Upload failed" });
+        return;
+      }
+      updatePending(id, { status: "ready", fileId: data.fileId });
+    } catch {
+      updatePending(id, { status: "error", error: "Upload failed" });
+    }
+  }
+
+  function onPick(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? []);
     if (fileRef.current) fileRef.current.value = "";
     setNotice(null);
-    const next: Attachment[] = [...pending];
     for (const f of files) {
-      const buf = await f.arrayBuffer();
-      const b64 = btoa(
-        new Uint8Array(buf).reduce((s, b) => s + String.fromCharCode(b), "")
-      );
-      next.push({
+      const id = `f${idCounter.current++}`;
+      const base: Attachment = {
+        id,
         name: f.name,
-        mediaType: f.type || (f.name.endsWith(".pdf") ? "application/pdf" : "application/octet-stream"),
-        dataB64: b64,
+        mediaType: f.type || (f.name.toLowerCase().endsWith(".pdf") ? "application/pdf" : ""),
         sizeKb: Math.max(1, Math.round(f.size / 1024)),
-      });
+        status: "uploading",
+      };
+      if (f.size > MAX_FILE_BYTES) {
+        setPending((p) => [
+          ...p,
+          { ...base, status: "error", error: "File too large (max ~4 MB each)" },
+        ]);
+        continue;
+      }
+      setPending((p) => [...p, base]);
+      void uploadOne(f, id);
     }
-    setPending(next);
   }
 
-  function removePending(idx: number) {
-    setPending((p) => p.filter((_, i) => i !== idx));
+  function removePending(id: string) {
+    setPending((p) => p.filter((a) => a.id !== id));
   }
 
-  function buildBlocks(text: string, atts: Attachment[]): Block[] {
+  function buildBlocks(text: string, atts: { fileId: string; mediaType: string; name: string }[]): Block[] {
     const blocks: Block[] = [];
     for (const a of atts) {
-      if (a.mediaType === "application/pdf") {
-        blocks.push({
-          type: "document",
-          source: { type: "base64", media_type: "application/pdf", data: a.dataB64 },
-        });
-      } else if (imageType(a.mediaType)) {
-        blocks.push({
-          type: "image",
-          source: { type: "base64", media_type: a.mediaType, data: a.dataB64 },
-        });
+      const isPdf = a.mediaType === "application/pdf" || a.name.toLowerCase().endsWith(".pdf");
+      if (isPdf) {
+        blocks.push({ type: "document", source: { type: "file", file_id: a.fileId } });
+      } else if (isImage(a.mediaType)) {
+        blocks.push({ type: "image", source: { type: "file", file_id: a.fileId } });
+      } else {
+        blocks.push({ type: "document", source: { type: "file", file_id: a.fileId } });
       }
     }
     blocks.push({ type: "text", text: text || "Please review the attached document(s)." });
     return blocks;
   }
 
+  const uploading = pending.some((a) => a.status === "uploading");
+
   async function send(promptText?: string) {
     const text = (promptText ?? input).trim();
-    if ((!text && pending.length === 0) || streaming) return;
-
-    // Guard the serverless request-body limit.
-    const totalBytes =
-      payloads.current.flat().reduce((s, a) => s + a.dataB64.length, 0) +
-      pending.reduce((s, a) => s + a.dataB64.length, 0);
-    if (totalBytes > MAX_TOTAL_BYTES) {
-      setNotice(
-        "The documents in this conversation are too large to send together (over ~4 MB). Start a new report or use smaller / fewer files."
-      );
-      return;
-    }
+    const ready = pending.filter((a) => a.status === "ready" && a.fileId);
+    if ((!text && ready.length === 0) || streaming || uploading) return;
 
     const userMsg: ChatMessage = {
       role: "user",
       text,
-      attachments: pending.map((a) => ({ name: a.name, sizeKb: a.sizeKb })),
+      attachments: ready.map((a) => ({
+        name: a.name,
+        sizeKb: a.sizeKb,
+        fileId: a.fileId!,
+        mediaType: a.mediaType,
+      })),
     };
-    const sentPending = pending;
-    payloads.current.push(sentPending);
 
     const nextMessages = [...messages, userMsg];
     setMessages(nextMessages);
@@ -131,11 +150,9 @@ export default function Chat() {
     setStreaming(true);
     setNotice(null);
 
-    // Build the API payload: rebuild content blocks (incl. documents) for every turn.
-    const apiMessages = nextMessages.map((m, i) => {
-      const atts = m.role === "user" ? payloads.current[userIndex(nextMessages, i)] ?? [] : [];
-      if (m.role === "user" && atts.length > 0) {
-        return { role: m.role, content: buildBlocks(m.text, atts) };
+    const apiMessages = nextMessages.map((m) => {
+      if (m.role === "user" && m.attachments && m.attachments.length > 0) {
+        return { role: m.role, content: buildBlocks(m.text, m.attachments) };
       }
       return { role: m.role, content: m.text };
     });
@@ -181,17 +198,22 @@ export default function Chat() {
   }
 
   const empty = messages.length === 0;
+  const readyCount = pending.filter((a) => a.status === "ready").length;
 
   return (
     <div className="flex h-full flex-col">
       <div ref={scrollRef} className="scroll-thin flex-1 overflow-y-auto">
         <div className="mx-auto max-w-3xl px-4 py-6">
           {empty ? (
-            <Welcome onPrompt={(p) => send(p)} hasFiles={pending.length > 0} />
+            <Welcome onPrompt={(p) => send(p)} hasFiles={readyCount > 0} />
           ) : (
             <div className="space-y-6">
               {messages.map((m, i) => (
-                <Bubble key={i} message={m} streaming={streaming && i === messages.length - 1} />
+                <Bubble
+                  key={i}
+                  message={m}
+                  streaming={streaming && i === messages.length - 1}
+                />
               ))}
             </div>
           )}
@@ -207,15 +229,25 @@ export default function Chat() {
           )}
           {pending.length > 0 && (
             <div className="mb-2 flex flex-wrap gap-2">
-              {pending.map((a, i) => (
+              {pending.map((a) => (
                 <span
-                  key={i}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 py-1 pl-2 pr-1 text-xs text-slate-700 ring-1 ring-inset ring-slate-200"
+                  key={a.id}
+                  className={`inline-flex items-center gap-1.5 rounded-lg py-1 pl-2 pr-1 text-xs ring-1 ring-inset ${
+                    a.status === "error"
+                      ? "bg-red-50 text-red-700 ring-red-600/20"
+                      : "bg-slate-100 text-slate-700 ring-slate-200"
+                  }`}
                 >
-                  <IconDoc className="h-3.5 w-3.5 text-slate-400" />
-                  <span className="max-w-[180px] truncate">{a.name}</span>
+                  {a.status === "uploading" ? (
+                    <span className="h-3 w-3 animate-spin rounded-full border-2 border-slate-300 border-t-slate-500" />
+                  ) : (
+                    <IconDoc className="h-3.5 w-3.5 text-slate-400" />
+                  )}
+                  <span className="max-w-[180px] truncate" title={a.error ?? a.name}>
+                    {a.name}
+                  </span>
                   <button
-                    onClick={() => removePending(i)}
+                    onClick={() => removePending(a.id)}
                     className="rounded p-0.5 text-slate-400 hover:bg-slate-200 hover:text-slate-700"
                     aria-label="Remove"
                   >
@@ -259,31 +291,23 @@ export default function Chat() {
             />
             <button
               onClick={() => send()}
-              disabled={streaming || (!input.trim() && pending.length === 0)}
+              disabled={streaming || uploading || (!input.trim() && readyCount === 0)}
               className="mb-0.5 shrink-0 rounded-lg bg-brand-600 p-2 text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-40"
               aria-label="Send"
+              title={uploading ? "Waiting for uploads to finish…" : "Send"}
             >
               <IconSend className="h-5 w-5" />
             </button>
           </div>
           <p className="mt-1.5 text-center text-[11px] text-slate-400">
-            AI-drafted title opinion for decision support — verify against the
-            original records before relying on it.
+            {uploading
+              ? "Uploading documents…"
+              : "AI-drafted title opinion for decision support — verify against the original records before relying on it."}
           </p>
         </div>
       </div>
     </div>
   );
-}
-
-// Because assistant messages are interleaved, map a flat message index to its
-// position among user messages (which is how payloads.current is keyed).
-function userIndex(msgs: ChatMessage[], flatIndex: number): number {
-  let count = -1;
-  for (let i = 0; i <= flatIndex; i++) {
-    if (msgs[i].role === "user") count++;
-  }
-  return count;
 }
 
 function Bubble({
@@ -324,9 +348,7 @@ function Bubble({
       <div className="min-w-0 flex-1 pt-0.5">
         {message.text ? (
           <div className="prose-report">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-              {message.text}
-            </ReactMarkdown>
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.text}</ReactMarkdown>
           </div>
         ) : streaming ? (
           <div className="flex items-center gap-1.5 py-1 text-sm text-slate-400">
@@ -382,7 +404,8 @@ function Welcome({
         />
       </div>
       <p className="mt-4 text-xs text-slate-400">
-        Tip: attach files with the paperclip, then ask me to generate the report.
+        Tip: attach files with the paperclip (each up to ~4 MB), then ask me to
+        generate the report.
       </p>
     </div>
   );
